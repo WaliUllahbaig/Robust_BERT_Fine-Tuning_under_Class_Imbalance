@@ -1,0 +1,74 @@
+# ==============================================================================
+# Robust BERT Fine-Tuning under Class Imbalance — Configuration
+# ==============================================================================
+
+# --- Dataset ---
+data:
+  dataset_name: "dair-ai/emotion"          # HuggingFace dataset identifier
+  text_column: "text"                       # Column containing input text
+  label_column: "label"                     # Column containing class labels
+  max_length: 128                           # Maximum token sequence length
+  num_labels: 6                             # Number of target classes
+  label_names:                              # Human-readable label mapping
+    - "sadness"
+    - "joy"
+    - "love"
+    - "anger"
+    - "fear"
+    - "surprise"
+  remove_empty: true                        # Drop samples with empty text
+
+# --- Model ---
+model:
+  name: "bert-base-uncased"
+  dropout: 0.1                              # Classifier dropout (BERT default)
+
+# --- Training ---
+training:
+  output_dir: "./models/bert-emotion"
+  logging_dir: "./logs"
+  seed: 42
+  epochs: 5
+  per_device_train_batch_size: 32
+  per_device_eval_batch_size: 64
+  learning_rate: 2.0e-5
+  weight_decay: 0.01
+  warmup_ratio: 0.06
+  lr_scheduler_type: "linear"
+  fp16: true                                # Mixed-precision (requires GPU)
+  gradient_accumulation_steps: 1
+  eval_strategy: "epoch"
+  save_strategy: "epoch"
+  save_total_limit: 2
+  load_best_model_at_end: true
+  metric_for_best_model: "macro_f1"
+  greater_is_better: true
+  report_to: "tensorboard"
+  dataloader_num_workers: 2
+
+# --- Class Imbalance ---
+imbalance:
+  use_weighted_loss: true                   # Enable inverse-frequency weighting
+
+# --- Early Stopping ---
+early_stopping:
+  enabled: true
+  patience: 3
+
+# --- Evaluation ---
+evaluation:
+  confusion_matrix: true
+  per_class_metrics: true
+  error_analysis_samples: 25               # Number of misclassified examples to log
+
+# --- Reproducibility ---
+reproducibility:
+  seed: 42
+  deterministic_cudnn: true                 # torch.backends.cudnn.deterministic
+  benchmark_cudnn: false                    # torch.backends.cudnn.benchmark
+
+# --- Experiment Tracking ---
+experiment:
+  name: "bert-emotion-weighted-loss"
+  tags: ["bert", "emotion", "class-imbalance", "weighted-ce"]
+  notes: "Fine-tuning bert-base-uncased on Emotion dataset with inverse-frequency weighted CrossEntropyLoss"
