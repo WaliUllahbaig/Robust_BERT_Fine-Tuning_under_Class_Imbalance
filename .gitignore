@@ -1,0 +1,44 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Model checkpoints (large files)
+models/bert-emotion/checkpoint-*/
+models/bert-emotion/best/
+
+# Logs
+logs/events.*
+logs/*/
+
+# Data cache
+data/*.cache
+.cache/
+
+# HuggingFace cache
+~/.cache/huggingface/
+
+# Experiment outputs (regenerate with evaluate.py)
+experiments/*.png
+experiments/*.json
+experiments/*.txt
+!experiments/.gitkeep
