@@ -285,7 +285,7 @@ def main(
     trainer = Trainer(
         model=model,
         data_collator=data_collator,
-        tokenizer=eval_tokenizer,
+        processing_class=eval_tokenizer,
         compute_metrics=compute_metrics,
     )
 

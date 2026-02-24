@@ -7,7 +7,7 @@ data:
   dataset_name: "dair-ai/emotion"          # HuggingFace dataset identifier
   text_column: "text"                       # Column containing input text
   label_column: "label"                     # Column containing class labels
-  max_length: 128                           # Maximum token sequence length
+  max_length: 48                            # Reduced for 2GB GPU memory
   num_labels: 6                             # Number of target classes
   label_names:                              # Human-readable label mapping
     - "sadness"
@@ -29,14 +29,15 @@ training:
   logging_dir: "./logs"
   seed: 42
   epochs: 5
-  per_device_train_batch_size: 32
-  per_device_eval_batch_size: 64
+  per_device_train_batch_size: 4
+  per_device_eval_batch_size: 8
   learning_rate: 2.0e-5
   weight_decay: 0.01
   warmup_ratio: 0.06
   lr_scheduler_type: "linear"
-  fp16: true                                # Mixed-precision (requires GPU)
-  gradient_accumulation_steps: 1
+  fp16: false                               # Disabled for MX550 (2GB VRAM)
+  gradient_accumulation_steps: 8            # Effective batch size = 4 * 8 = 32
+  gradient_checkpointing: true              # Trade compute for memory
   eval_strategy: "epoch"
   save_strategy: "epoch"
   save_total_limit: 2

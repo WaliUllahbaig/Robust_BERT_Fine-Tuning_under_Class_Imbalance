@@ -23,6 +23,8 @@ import os
 import time
 from pathlib import Path
 
+import os
+
 import torch
 import yaml
 from transformers import (
@@ -119,19 +121,28 @@ def main(config_path: str = "config.yaml") -> None:
     output_dir = Path(train_cfg["output_dir"])
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    # Set TensorBoard logging directory via environment variable (Transformers v5.x)
+    os.environ["TENSORBOARD_LOGGING_DIR"] = train_cfg["logging_dir"]
+
+    # Compute warmup_steps from warmup_ratio
+    total_train_samples = len(tokenized_datasets["train"])
+    steps_per_epoch = total_train_samples // train_cfg["per_device_train_batch_size"]
+    total_steps = steps_per_epoch * train_cfg["epochs"]
+    warmup_steps = int(total_steps * train_cfg["warmup_ratio"])
+
     training_args = TrainingArguments(
         output_dir=str(output_dir),
-        logging_dir=train_cfg["logging_dir"],
         seed=train_cfg["seed"],
         num_train_epochs=train_cfg["epochs"],
         per_device_train_batch_size=train_cfg["per_device_train_batch_size"],
         per_device_eval_batch_size=train_cfg["per_device_eval_batch_size"],
         learning_rate=train_cfg["learning_rate"],
         weight_decay=train_cfg["weight_decay"],
-        warmup_ratio=train_cfg["warmup_ratio"],
+        warmup_steps=warmup_steps,
         lr_scheduler_type=train_cfg["lr_scheduler_type"],
         fp16=train_cfg["fp16"] and torch.cuda.is_available(),
         gradient_accumulation_steps=train_cfg["gradient_accumulation_steps"],
+        gradient_checkpointing=train_cfg.get("gradient_checkpointing", False),
         eval_strategy=train_cfg["eval_strategy"],
         save_strategy=train_cfg["save_strategy"],
         save_total_limit=train_cfg["save_total_limit"],
@@ -155,7 +166,7 @@ def main(config_path: str = "config.yaml") -> None:
         train_dataset=tokenized_datasets["train"],
         eval_dataset=tokenized_datasets["validation"],
         data_collator=data_collator,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
         compute_metrics=compute_metrics,
         callbacks=callbacks,
         class_weights=class_weights if imb_cfg["use_weighted_loss"] else None,
