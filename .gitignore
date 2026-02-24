@@ -11,6 +11,7 @@ build/
 # Virtual environments
 .venv/
 env/
+.conda_env/
 
 # IDE
 .vscode/
