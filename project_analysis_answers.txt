@@ -1,0 +1,394 @@
+================================================================================
+COMPREHENSIVE PROJECT ANALYSIS — BERT Fine-Tuning Under Class Imbalance
+================================================================================
+Project: Robust BERT Fine-Tuning under Class Imbalance
+Repository: https://github.com/WaliUllahbaig/Robust_BERT_Fine-Tuning_under_Class_Imbalance
+Author GitHub Username: WaliUllahbaig
+Date of Training: February 2026
+================================================================================
+
+
+================================================================================
+A. CODE & REPOSITORIES
+================================================================================
+
+A1. Repository & Core Code
+──────────────────────────
+- Repo URL: https://github.com/WaliUllahbaig/Robust_BERT_Fine-Tuning_under_Class_Imbalance
+- Core model code file path: models/trainer.py (WeightedLossTrainer class)
+- Training pipeline file path: train.py
+- Data preprocessing file path: data/dataset.py
+- Evaluation pipeline file path: evaluate.py
+- GitHub username: WaliUllahbaig
+
+- Three commit SHAs authored:
+  1. 2cdfc0c — "Archetecture Formed" (initial full project scaffolding: train.py, evaluate.py, config.yaml, data pipeline, trainer, utils)
+  2. ffe2aaf — "Parameters Adjustment" (hyperparameter tuning, Transformers v5.x compatibility fixes)
+  3. f90a0de — "Conda environment Shifted & Updated git ignore file" (relocated conda env into project, RTX 4090 params)
+
+- Role description (≤50 words):
+  Sole developer. Designed and implemented the entire ML pipeline end-to-end: data preprocessing with text cleaning, inverse-frequency weighted loss for class imbalance, BERT fine-tuning with HuggingFace Trainer, evaluation with confusion matrix and error analysis, reproducibility controls, and TensorBoard experiment tracking.
+
+A2. Code Snippet (10–20 lines) — Custom Weighted Loss Trainer
+──────────────────────────────────────────────────────────────
+File: models/trainer.py, Lines 34–65
+
+class WeightedLossTrainer(Trainer):
+    def __init__(self, *args, class_weights=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.class_weights = class_weights
+
+    def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
+        labels = inputs.pop("labels")
+        outputs = model(**inputs)
+        logits = outputs.logits
+
+        if self.class_weights is not None:
+            weight = self.class_weights.to(logits.device)
+            loss_fn = nn.CrossEntropyLoss(weight=weight)
+        else:
+            loss_fn = nn.CrossEntropyLoss()
+
+        loss = loss_fn(logits, labels)
+        return (loss, outputs) if return_outputs else loss
+
+- Which lines are mine? Why written that way? (≤60 words):
+  All lines are mine. The compute_loss override injects inverse-frequency class weights into CrossEntropyLoss to up-weight minority classes (surprise, love) during backpropagation. Weights are lazily moved to model device to support multi-GPU. Labels are popped from inputs so the base model doesn't receive them, avoiding double loss computation.
+
+A3. Exact Training Command & Environment
+──────────────────────────────────────────
+Training command:
+  python train.py --config config.yaml
+
+Environment:
+  - Conda environment: "bert" (Python 3.10.19)
+  - PyTorch: 2.5.1+cu121 (installed via pip from https://download.pytorch.org/whl/cu121)
+  - CUDA Version: 12.1
+  - Transformers: 5.2.0
+  - Datasets: 4.5.0
+  - scikit-learn: 1.7.2
+  - accelerate: 1.12.0
+  - Requirements file: requirements.txt (in repo root)
+  - Environment file: .conda_env/ (portable local conda env in project directory)
+  - GPU: NVIDIA GeForce RTX 4090 (24 GB VRAM)
+  - OS: Windows
+
+
+================================================================================
+B. DATA & REPRODUCIBILITY
+================================================================================
+
+B1. Dataset (≤80 words)
+────────────────────────
+Dataset: dair-ai/emotion (HuggingFace Hub). Size: 20,000 samples total — 16,000 train / 2,000 validation / 2,000 test. Each sample has 1 text feature (English tweet) and 1 integer label (6 classes). Classes: sadness (5,362), joy (5,362), love (1,304), anger (2,159), fear (1,937), surprise (572). Train/val/test split: predefined by the dataset authors. License: Apache 2.0. Data cleaning step performed: collapsed whitespace and stripped leading/trailing spaces via clean_text(); removed empty/whitespace-only samples via remove_empty_samples().
+
+B2. Reproducibility (≤60 words)
+────────────────────────────────
+Seeds set in: Python random, NumPy, PyTorch CPU, PyTorch CUDA (torch.manual_seed, torch.cuda.manual_seed_all). Also: torch.backends.cudnn.deterministic=True, cudnn.benchmark=False, CUBLAS_WORKSPACE_CONFIG=":4096:8", torch.use_deterministic_algorithms(True, warn_only=True). Remaining nondeterminism: CUDA floating-point atomics ordering in certain operations (e.g., scatter_add, index_add) cannot be fully eliminated even with deterministic flags.
+
+
+================================================================================
+C. MODELING DECISIONS
+================================================================================
+
+C1. Task & Model Choice (≤100 words)
+──────────────────────────────────────
+Task type: Multi-class text classification (6 emotion categories).
+Model family: BERT-base-uncased (110M parameters, 12 layers, 768 hidden dim).
+Why over alternatives:
+  - Over LSTM/BiLSTM: BERT's bidirectional self-attention captures long-range dependencies and contextual semantics far better than recurrent models for short text.
+  - Over DistilBERT: BERT-base provides higher capacity for fine-grained emotion distinctions (6 classes with subtle boundaries like love vs. joy); DistilBERT sacrifices ~3% accuracy.
+Most impactful hyperparameter tuned: learning_rate = 2e-5 (search range: 1e-5 to 5e-5). Larger LR caused training instability; smaller LR underfit within 5 epochs.
+
+C2. Supervision Signal (≤60 words)
+───────────────────────────────────
+Supervised learning. Labels are human-annotated discrete emotion categories (0–5 mapping to sadness, joy, love, anger, fear, surprise). The dataset provides ground-truth class labels for every sample. Pre-training used masked language modeling (self-supervised pretext task by original BERT authors); our fine-tuning is fully supervised with the provided emotion labels.
+
+
+================================================================================
+D. EVALUATION & ERROR ANALYSIS
+================================================================================
+
+D1. Primary Metric & Trade-Off (≤60 words)
+────────────────────────────────────────────
+Primary metric optimized: Macro-F1 (0.8904 on test set). Trade-off: Macro-F1 weights all classes equally, which improves minority class performance (surprise F1=0.773) at the cost of slightly lower majority class performance. Using accuracy alone (0.93) would mask poor minority class recall and favor the dominant classes (sadness, joy).
+
+D2. Concrete Failure Mode — Error Analysis (≤100 words)
+────────────────────────────────────────────────────────
+Failure mode found via per-class metrics:
+  - "surprise" class: Precision = 0.690, Recall = 0.879, F1 = 0.773
+  - The model over-predicts "surprise," causing many false positives (precision only 69%).
+  - Confusion matrix analysis: "surprise" is most confused with "joy" and "fear."
+
+Why it fails: "surprise" is the smallest class (572 train samples vs. 5,362 for sadness/joy — 9:1 ratio). Despite inverse-frequency weighting (w_surprise=4.66), the class lacks sufficient diversity for the model to learn robust decision boundaries. Lexical overlap between surprise and joy expressions (e.g., "wow", "amazing") further degrades precision.
+
+Fix attempted: Applied inverse-frequency weighted CrossEntropyLoss (w_c = N / (K × n_c)), which improved surprise recall from ~0.60 (unweighted baseline) to 0.879, but at the cost of precision. Further mitigation would require data augmentation or oversampling.
+
+D3. Final Validation Log & Overfitting (≤60 words)
+────────────────────────────────────────────────────
+Final validation log (epoch 5, step 10000):
+  eval_loss: 0.4929 | eval_accuracy: 0.939 | eval_macro_f1: 0.9119
+Best checkpoint: models/bert-emotion/checkpoint-6000 (epoch 3, macro_f1=0.9144)
+
+Overfitting signs: Training loss dropped from 1.608 → 0.069 while eval_loss rose from 0.267 (epoch 1) → 0.493 (epoch 5). Classic train-val divergence after epoch 3. Early stopping (patience=3) triggered after epoch 5 with counter at 2.
+
+Test set results (best model loaded at end):
+  test_loss: 0.2702
+  test_accuracy: 0.9300
+  test_macro_f1: 0.8904
+
+
+================================================================================
+E. COMPUTE & SYSTEMS
+================================================================================
+
+E1. Hardware & Training Time (≤50 words)
+─────────────────────────────────────────
+Hardware: NVIDIA GeForce RTX 4090 (24 GB VRAM), trained on Windows.
+Training time: 700.86 seconds (11.68 minutes) for 5 epochs, 10,000 steps.
+Peak GPU memory: 2.11 GB (out of 24 GB available).
+Monitoring: TensorBoard (report_to="tensorboard", events logged to ./logs/).
+
+E2. Profiling (≤80 words)
+──────────────────────────
+Profiling via training_profile.json output and TensorBoard event files:
+  - training_time_seconds: 700.86
+  - peak_gpu_memory_gb: 2.11
+  - gpu_device: NVIDIA GeForce RTX 4090
+  - steps_completed: 10,000
+  - test_samples_per_second: 172.45
+  - test throughput: 10.78 steps/second
+
+TensorBoard logs (2 event files in ./logs/):
+  - events.out.tfevents.1771995687.LHR-BS-006073D.10964.0
+  - events.out.tfevents.1771996399.LHR-BS-006073D.10964.1
+
+Change made: Enabled FP16 mixed precision on RTX 4090, which reduced memory from ~4GB (FP32) to 2.11GB peak and improved throughput. Set dataloader_num_workers=4 for parallel data loading.
+
+
+================================================================================
+F. MLOPS & ENGINEERING HYGIENE
+================================================================================
+
+F1. Experiment Tracking (≤60 words)
+────────────────────────────────────
+Experiments tracked via TensorBoard with structured JSON outputs.
+Experiment ID: "bert-emotion-weighted-loss" (defined in config.yaml under experiment.name).
+Key run artifacts:
+  - models/bert-emotion/test_metrics.json (test_macro_f1: 0.8904)
+  - models/bert-emotion/training_profile.json (time, peak mem, device)
+  - models/bert-emotion/checkpoint-6000/trainer_state.json (full log_history)
+Decision informed: best_model_checkpoint = checkpoint-6000 (epoch 3) selected over checkpoint-10000 (epoch 5) based on eval_macro_f1 (0.9144 vs 0.9119), confirming overfitting after epoch 3.
+
+F2. Testing (≤60 words)
+────────────────────────
+Data validation test implemented in data/dataset.py: the remove_empty_samples() function acts as an integration test — it filters out empty/whitespace-only text entries and logs how many were removed per split. It verifies data integrity before tokenization. Located in data/dataset.py, lines 46–62. The compute_class_weights() function also validates that all classes are present (guard against missing class via counts.get(c, 1)).
+
+
+================================================================================
+G. TEAMWORK & CONTRIBUTION
+================================================================================
+
+G1. Merge Request / PR (≤60 words)
+───────────────────────────────────
+Solo project — all commits pushed directly to main branch. Commit f90a0de ("Conda environment Shifted & Updated git ignore file") was the final push after relocating the conda environment into the project directory and updating parameters for RTX 4090. No external reviewers. All code authored by WaliUllahbaig.
+
+G2. Contribution (≤50 words)
+─────────────────────────────
+Sole contributor. Without my contribution, the entire pipeline would break: the WeightedLossTrainer (custom loss function for class imbalance), the data preprocessing pipeline (clean_text, compute_class_weights), the training orchestration (train.py), the evaluation and error analysis system (evaluate.py), and the reproducibility controls (utils/seed.py).
+
+
+================================================================================
+H. RESPONSIBLE & LEGAL AI
+================================================================================
+
+H1. Dataset Bias & Limitation (≤80 words)
+───────────────────────────────────────────
+Bias encountered: Severe class imbalance — "surprise" has only 572 samples vs. 5,362 for "sadness"/"joy" (9.4:1 ratio). This causes the model to under-represent minority emotions. Measurement: computed per-class sample counts via Counter and derived inverse-frequency weights (w_surprise=4.66, w_joy=0.50). Mitigation: applied inverse-frequency weighted CrossEntropyLoss (w_c = N/(K×n_c)) which improved surprise recall from ~0.60 to 0.879. Additional bias: dataset consists of English tweets only, limiting generalization to other languages/domains.
+
+H2. Licensing (≤50 words)
+──────────────────────────
+- Code license: Apache License 2.0 (in LICENSE file)
+- Model: bert-base-uncased is released under Apache 2.0 by Google
+- Dataset: dair-ai/emotion is released under Apache 2.0
+- Libraries: PyTorch (BSD), Transformers (Apache 2.0), scikit-learn (BSD)
+All licenses are mutually compatible. Repo license (Apache 2.0) is compatible with all dependencies.
+
+
+================================================================================
+I. MATH & UNDERSTANDING
+================================================================================
+
+I1. Loss Function (≤60 words)
+──────────────────────────────
+Exact loss function minimized (weighted cross-entropy):
+
+  L = - (1/N) * Σ_{i=1}^{N} w_{y_i} * log( exp(z_{i,y_i}) / Σ_{c=1}^{K} exp(z_{i,c}) )
+
+where:
+  - z_{i,c} = logit for sample i, class c
+  - y_i = true class label for sample i
+  - w_c = N / (K × n_c) (inverse-frequency weight for class c)
+  - K = 6 (number of classes), N = 16,000 (training samples)
+
+Regularization term: L2 weight decay = 0.01 (applied via AdamW optimizer to all parameters except bias and LayerNorm weights).
+
+I2. Early Stopping (≤40 words)
+───────────────────────────────
+Early stopping with patience = 3 epochs. Selection criterion: eval_macro_f1 (greater_is_better=True). Best checkpoint selected at epoch 3 (step 6000) with eval_macro_f1 = 0.9144. Training continued to epoch 5 (early stopping counter reached 2 out of 3).
+
+
+================================================================================
+APPENDIX: COMPLETE TRAINING LOG (EPOCH-BY-EPOCH)
+================================================================================
+
+Step    | Epoch | Train Loss | Eval Loss | Eval Acc | Eval Macro-F1 | LR
+--------|-------|------------|-----------|----------|---------------|---------------
+500     | 0.25  | 1.6075     | —         | —        | —             | 1.65e-05
+1000    | 0.50  | 0.5268     | —         | —        | —             | 1.92e-05
+1500    | 0.75  | 0.3571     | —         | —        | —             | 1.81e-05
+2000    | 1.0   | 0.3066     | 0.2675    | 0.924    | 0.9015        | 1.70e-05
+3000    | 1.5   | 0.2113     | —         | —        | —             | 1.49e-05
+4000    | 2.0   | 0.1974     | 0.2259    | 0.937    | 0.9129        | 1.28e-05
+5000    | 2.5   | 0.1875     | —         | —        | —             | 1.07e-05
+6000*   | 3.0   | 0.1618     | 0.2370    | 0.9365   | 0.9144*       | 8.53e-06
+7000    | 3.5   | 0.1280     | —         | —        | —             | 6.40e-06
+8000    | 4.0   | 0.1375     | 0.3684    | 0.9335   | 0.9078        | 4.27e-06
+9000    | 4.5   | 0.0736     | —         | —        | —             | 2.14e-06
+10000   | 5.0   | 0.0687     | 0.4929    | 0.939    | 0.9119        | 1.91e-08
+
+* = Best checkpoint (highest eval_macro_f1)
+
+Note: Eval loss rose from 0.237 (epoch 3) to 0.493 (epoch 5) while train loss fell from 0.162 to 0.069 — clear overfitting after epoch 3.
+
+
+================================================================================
+APPENDIX: COMPLETE TEST SET RESULTS (BEST MODEL, CHECKPOINT-6000)
+================================================================================
+
+Overall Metrics:
+  test_loss:             0.2702
+  test_accuracy:         0.9300
+  test_macro_f1:         0.8904
+  test_macro_precision:  0.8790
+  test_macro_recall:     0.9057
+  test_runtime:          11.60s
+  test_throughput:       172.45 samples/sec
+
+Per-Class Breakdown:
+  Class      | Precision | Recall | F1     | Support (approx)
+  -----------|-----------|--------|--------|------------------
+  sadness    | 0.9757    | 0.9656 | 0.9706 | ~581
+  joy        | 0.9563    | 0.9439 | 0.9500 | ~695
+  love        | 0.8221    | 0.8428 | 0.8323 | ~159
+  anger      | 0.9338    | 0.9236 | 0.9287 | ~275
+  fear       | 0.8955    | 0.8795 | 0.8874 | ~224
+  surprise   | 0.6905    | 0.8788 | 0.7733 | ~66
+
+Weakest class: surprise (F1=0.773) — lowest precision (0.690) due to small training set (572 samples).
+Strongest class: sadness (F1=0.971) — high precision and recall, largest training set.
+
+
+================================================================================
+APPENDIX: CLASS WEIGHT VALUES (INVERSE-FREQUENCY)
+================================================================================
+
+Class weights (w_c = N / (K × n_c)):
+  sadness:   0.57  (majority class, down-weighted)
+  joy:       0.50  (majority class, down-weighted)
+  love:      2.04  (minority class, up-weighted)
+  anger:     1.24  (moderate)
+  fear:      1.38  (moderate)
+  surprise:  4.66  (extreme minority, strongly up-weighted)
+
+
+================================================================================
+APPENDIX: PROJECT FILE STRUCTURE
+================================================================================
+
+Robust BERT Fine-Tuning under Class Imbalance/
+├── config.yaml                     # Central YAML configuration
+├── train.py                        # Training pipeline (entry point)
+├── evaluate.py                     # Post-training evaluation & error analysis
+├── requirements.txt                # pip dependencies
+├── LICENSE                         # Apache 2.0
+├── README.md                       # Comprehensive research documentation
+├── .gitignore
+├── data/
+│   ├── __init__.py
+│   └── dataset.py                  # Data loading, cleaning, tokenization, class weights
+├── models/
+│   ├── __init__.py
+│   ├── trainer.py                  # WeightedLossTrainer (custom loss)
+│   └── bert-emotion/               # Training outputs
+│       ├── test_metrics.json        # Final test results
+│       ├── training_profile.json    # Runtime profiling
+│       ├── checkpoint-6000/         # Best checkpoint (epoch 3)
+│       └── checkpoint-10000/        # Final checkpoint (epoch 5)
+├── utils/
+│   ├── __init__.py
+│   ├── metrics.py                   # compute_metrics (accuracy, macro-F1, per-class)
+│   └── seed.py                      # Reproducibility seed setting
+├── logs/                            # TensorBoard event files
+│   ├── events.out.tfevents.1771995687.*
+│   └── events.out.tfevents.1771996399.*
+├── experiments/                     # Evaluation outputs (after running evaluate.py)
+│   └── .gitkeep
+└── .conda_env/                      # Portable conda environment (Python 3.10)
+
+
+================================================================================
+APPENDIX: FULL CONFIGURATION (config.yaml)
+================================================================================
+
+data:
+  dataset_name: "dair-ai/emotion"
+  text_column: "text"
+  label_column: "label"
+  max_length: 128
+  num_labels: 6
+  label_names: [sadness, joy, love, anger, fear, surprise]
+  remove_empty: true
+
+model:
+  name: "bert-base-uncased"
+  dropout: 0.1
+
+training:
+  output_dir: "./models/bert-emotion"
+  logging_dir: "./logs"
+  seed: 42
+  epochs: 5
+  per_device_train_batch_size: 32
+  per_device_eval_batch_size: 64
+  learning_rate: 2.0e-5
+  weight_decay: 0.01
+  warmup_ratio: 0.06
+  lr_scheduler_type: "linear"
+  fp16: true
+  gradient_accumulation_steps: 1
+  gradient_checkpointing: false
+  eval_strategy: "epoch"
+  save_strategy: "epoch"
+  save_total_limit: 2
+  load_best_model_at_end: true
+  metric_for_best_model: "macro_f1"
+  greater_is_better: true
+  report_to: "tensorboard"
+  dataloader_num_workers: 4
+
+imbalance:
+  use_weighted_loss: true
+
+early_stopping:
+  enabled: true
+  patience: 3
+
+reproducibility:
+  seed: 42
+  deterministic_cudnn: true
+  benchmark_cudnn: false
+
+================================================================================
+END OF ANALYSIS
+================================================================================

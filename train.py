@@ -46,7 +46,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
 # ──────────────────────────────────────────────────────────────────────────────
 # Config
 # ──────────────────────────────────────────────────────────────────────────────
@@ -54,7 +53,6 @@ logger = logging.getLogger(__name__)
 def load_config(path: str = "config.yaml") -> dict:
     with open(path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
-
 
 # ──────────────────────────────────────────────────────────────────────────────
 # GPU Profiling Helper
@@ -69,7 +67,6 @@ def log_gpu_info() -> None:
         logger.info("GPU memory  : %.2f GB", mem_total)
     else:
         logger.warning("No CUDA GPU detected — training will run on CPU.")
-
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Main
