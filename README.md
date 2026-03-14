@@ -1,4 +1,4 @@
-# Robust BERT Fine-Tuning under Class Imbalance Imbalance Fine-
+# Robust BERT Fine-Tuning under Class Imbalance Imbalance Fine-Tuning
 
 > **Fine-tuning `bert-base-uncased` for multi-class emotion classification with inverse-frequency weighted cross-entropy loss, systematic error analysis, and full reproducibility controls.**
 
